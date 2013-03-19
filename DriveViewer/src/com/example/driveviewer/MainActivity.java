@@ -463,7 +463,7 @@ public class MainActivity extends ListActivity {
 			}
 			if(fileSize != null){
 				Long l = (Long) f.getFileSize();
-				fileSize.setText(fileSizeFormat(l)); //probably have to apply formatting here
+				fileSize.setText(fileSizeFormat(l) + " @" + position); //probably have to apply formatting here
 			}
 			if(date != null) {
 				date.setText("Last Opened: " + format.format(dateData));
@@ -471,20 +471,19 @@ public class MainActivity extends ListActivity {
 			if(icon != null) {
 				icon.setImageBitmap(f.getImage());
 			}
-			
 			v.setOnClickListener(new OnClickListener() {
 				boolean notExpanded = true;
 				boolean heightSet = false;
 				DisplayMetrics metrics = new DisplayMetrics();
 				int defaultHeight;
-				View options;
 				@Override
 				public void onClick(View v) {
+					showToast("This view has " + ((ViewGroup)v).getChildCount() + " children.");
 					if(!heightSet) {
-						defaultHeight = v.findViewById(R.id.filerow).getHeight();
-						showToast("default height: " + defaultHeight);
-						options = setupOptions();
 						heightSet = true;
+						metrics = new DisplayMetrics();
+						getWindowManager().getDefaultDisplay().getMetrics(metrics);
+						defaultHeight = getDPI(64,metrics);
 					}
 					// TODO Auto-generated method stub
 					if(notExpanded) {
@@ -529,6 +528,7 @@ public class MainActivity extends ListActivity {
 					return optionsInit;
 				}
 				private void expandView(View v){
+					View options = setupOptions();
 					//find the containing relative layout of a file
 					RelativeLayout fileListing= (RelativeLayout) v.findViewById(R.id.filerow);
 					//get settings for the layout of file
@@ -538,8 +538,7 @@ public class MainActivity extends ListActivity {
 					getWindowManager().getDefaultDisplay().getMetrics(metrics);
 					settings.height = defaultHeight + getDPI(30,metrics);
 					//apply the change
-					
-					fileListing.setLayoutParams(new AbsListView.LayoutParams(settings));
+					fileListing.setLayoutParams(settings);
 					fileListing.addView(options);
 				}
 				protected void collapseView(View v) {
@@ -551,12 +550,14 @@ public class MainActivity extends ListActivity {
 					View optionsBar = fileListing.findViewById(R.id.options); 
 					metrics = new DisplayMetrics();
 					getWindowManager().getDefaultDisplay().getMetrics(metrics);
+					showToast("returning to height: " + defaultHeight);
+					
 					settings.height = defaultHeight;
 					//apply the change
 					fileListing.setLayoutParams(new AbsListView.LayoutParams(settings));
-					
-					
 					fileListing.removeView(optionsBar);
+					optionsBar.invalidate();
+					
 					//TODO: hide buttons on collapse
 				}
 			});

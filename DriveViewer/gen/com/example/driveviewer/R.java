@@ -31,8 +31,8 @@ or to a theme attribute in the form "<code>?[<i>package</i>:][<i>type</i>:]<i>na
         public static final int spread=0x7f020006;
     }
     public static final class id {
-        public static final int bottomtext=0x7f08000b;
-        public static final int date=0x7f08000c;
+        public static final int bottomtext=0x7f08000c;
+        public static final int date=0x7f08000b;
         public static final int delete=0x7f080006;
         public static final int dummy_button=0x7f080003;
         public static final int empty=0x7f080000;
