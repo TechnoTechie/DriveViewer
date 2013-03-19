@@ -1,0 +1,6 @@
+# view AndroidManifest.xml #generated:19
+-keep class com.example.driveviewer.MainActivity { <init>(...); }
+
+# view AndroidManifest.xml #generated:29
+-keep class com.example.driveviewer.PDFViewer { <init>(...); }
+

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Drive Viewer</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="menu_logout">Logout</string>
+    <string name="placeholder_date">12.12.12</string>
+    <string name="placeholder_desc">Generic Description</string>
+    <string name="placeholder_title">Placeholder Title</string>
+    <string name="image_title">File Icon</string>
+    <string name="dummy_content">DUMMY\nCONTENT</string>
+    <string name="dummy_button">Dummy Button</string>
+    <string name="title_activity_pdfviewer">PDFViewer</string>
+    <string name="rename_button">Rename</string>
+    <string name="delete_button">Delete</string>
+    <string name="open_button">Open</string>
+
+</resources>
