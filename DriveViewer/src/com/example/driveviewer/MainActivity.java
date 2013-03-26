@@ -598,8 +598,7 @@ public class MainActivity extends ListActivity {
 			metrics = new DisplayMetrics();
 			getWindowManager().getDefaultDisplay().getMetrics(metrics);
 			settings.height = defaultHeight + getDPI(30,metrics);
-			
-			
+
 			//apply the change
 			fileListing.setLayoutParams(settings);
 			fileListing.addView(options);
