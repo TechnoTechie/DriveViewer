@@ -48,6 +48,7 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.RelativeLayout;
+import android.widget.RelativeLayout.LayoutParams;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -58,6 +59,7 @@ public class MainActivity extends ListActivity {
 	static final int REQUEST_AUTHORIZATION = 2;
 	static final int DOWNLOAD_FILES = 3;
 	static final int SPEED_ANIMATION_TRANSITION = 5;
+	static final int INITIAL_LOAD_COUNT = 10;
 	static final String REFERENCE = "com.example.driveviewer.DOWNLOAD_URL";
 
 	private static Drive service;
@@ -207,6 +209,7 @@ public class MainActivity extends ListActivity {
         }
     }
     private void logout(){
+    	
 		startActivityForResult(credential.newChooseAccountIntent(), REQUEST_ACCOUNT_PICKER);
     }
 	private void startFileGet(){
@@ -423,6 +426,7 @@ public class MainActivity extends ListActivity {
 	}
 	private class FileManager extends ArrayAdapter<FileDisplay>{
 		private ArrayList<FileDisplay> files;
+		private DriveClickListener clickListener = new DriveClickListener();
 		//private Drive service;
 
 		public FileManager(Context context, int textViewResourceId, ArrayList<FileDisplay> files, Drive service) {
@@ -445,104 +449,27 @@ public class MainActivity extends ListActivity {
 			//data
 			Format format = new SimpleDateFormat("yy.MM.dd", Locale.US);
 			FileDisplay f = files.get(position);
-
 			Date dateData = new Date(f.getLastViewedByMe().getValue());
+			ViewHolder holder;
 			View v = convertView;
 			if (v == null) {
 				LayoutInflater vi = (LayoutInflater)getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 				v = vi.inflate(R.layout.row, null);
-			}
-			//graphical elements
-			TextView title = (TextView) v.findViewById(R.id.toptext);
-			TextView fileSize = (TextView) v.findViewById(R.id.bottomtext);
-			TextView date = (TextView) v.findViewById(R.id.date);
-			ImageView icon = (ImageView) v.findViewById(R.id.icon);
-			//start filling graphical elements according to data
-			if (title != null) {
-				title.setText(f.getTitle());           
-			}
-			if(fileSize != null){
-				Long l = (Long) f.getFileSize();
-				fileSize.setText(fileSizeFormat(l) + " @" + position); //probably have to apply formatting here
-			}
-			if(date != null) {
-				date.setText("Last Opened: " + format.format(dateData));
-			}
-			if(icon != null) {
-				icon.setImageBitmap(f.getImage());
-			}
-			v.setOnClickListener(new OnClickListener() {
-				boolean notExpanded = true;
-				boolean heightSet = false;
-				DisplayMetrics metrics = new DisplayMetrics();
-				int defaultHeight;
-				@Override
-				public void onClick(View v) {
-					showToast("This view has " + ((ViewGroup)v).getChildCount() + " children.");
-					if(!heightSet) {
-						heightSet = true;
-						metrics = new DisplayMetrics();
-						getWindowManager().getDefaultDisplay().getMetrics(metrics);
-						defaultHeight = getDPI(64,metrics);
-					}
-					// TODO Auto-generated method stub
-					if(notExpanded) {
-						expandView(v);
-						notExpanded = false;
-					} else {
-						collapseView(v);
-						notExpanded = true;
-					}
-				}
-				private View setupOptions(){
-					LayoutInflater buttonLayout = (LayoutInflater)getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-					View optionsInit = buttonLayout.inflate(R.layout.buttonbar, null);
-					
-					Button open = (Button) optionsInit.findViewById(R.id.open);
-					Button delete = (Button) optionsInit.findViewById(R.id.delete);
-					Button rename = (Button) optionsInit.findViewById(R.id.rename);
-					
-					open.setOnClickListener(new View.OnClickListener() {            
-				        public void onClick(View view) {
-				        	showToast("Open!");
-				        	showToast("Guess it's not working yet...");
-				        	//TODO: enable open button
-				        	//m_adapter.showFile(this.pos);
-				        }
-				     });
-					delete.setOnClickListener(new View.OnClickListener() {            
-				        public void onClick(View view) {
-				        	showToast("Delete!");
-				        	showToast("Guess it's not working yet...");
-				        	//TODO: enable delete button
-				        }
-				     });
-					rename.setOnClickListener(new View.OnClickListener() {            
-				        public void onClick(View view) {
-				        	showToast("Rename!");
-				        	showToast("Guess it's not working yet...");
-				        	//TODO: enable rename button
-				        }
-				     });
-					//TODO: re-arrange options bar
-					return optionsInit;
-				}
-				private void expandView(View v){
-					View options = setupOptions();
-					//find the containing relative layout of a file
-					RelativeLayout fileListing= (RelativeLayout) v.findViewById(R.id.filerow);
-					//get settings for the layout of file
-					ViewGroup.LayoutParams settings = fileListing.getLayoutParams();
-					//set the width to the right size
-					metrics = new DisplayMetrics();
-					getWindowManager().getDefaultDisplay().getMetrics(metrics);
-					settings.height = defaultHeight + getDPI(30,metrics);
-					//apply the change
-					fileListing.setLayoutParams(settings);
-					fileListing.addView(options);
-				}
-				protected void collapseView(View v) {
-					//find the containing relative layout of a file
+				
+				holder = new ViewHolder();
+				//graphical elements
+				holder.title = (TextView) v.findViewById(R.id.toptext);
+				holder.fileSize = (TextView) v.findViewById(R.id.bottomtext);
+				holder.date = (TextView) v.findViewById(R.id.date);
+				holder.icon = (ImageView) v.findViewById(R.id.icon);
+				v.setOnClickListener(clickListener);
+		        v.setTag(holder);
+		    } else {
+		    	if(((ViewGroup)v).getChildCount() > 4){
+		    		DisplayMetrics metrics = new DisplayMetrics();
+		    		getWindowManager().getDefaultDisplay().getMetrics(metrics);
+					int defaultHeight = getDPI(64,metrics);
+		    		//find the containing relative layout of a file
 					RelativeLayout fileListing= (RelativeLayout) v.findViewById(R.id.filerow);
 					//get settings for the layout of file
 					ViewGroup.LayoutParams settings = fileListing.getLayoutParams();
@@ -550,29 +477,158 @@ public class MainActivity extends ListActivity {
 					View optionsBar = fileListing.findViewById(R.id.options); 
 					metrics = new DisplayMetrics();
 					getWindowManager().getDefaultDisplay().getMetrics(metrics);
-					showToast("returning to height: " + defaultHeight);
-					
+
 					settings.height = defaultHeight;
 					//apply the change
 					fileListing.setLayoutParams(new AbsListView.LayoutParams(settings));
-					fileListing.removeView(optionsBar);
-					optionsBar.invalidate();
-					
-					//TODO: hide buttons on collapse
-				}
-			});
+					while (((ViewGroup)v).getChildCount() > 4){
+						optionsBar = fileListing.findViewById(R.id.options);
+						optionsBar.invalidate();
+						fileListing.removeView(optionsBar);
+					}
+		    	}
+		    	holder = (ViewHolder) convertView.getTag();   
+		    }
+			//start filling graphical elements according to data
+			if (holder.title != null) {
+				holder.title.setText(f.getTitle());           
+			}
+			if(holder.fileSize != null){
+				Long l = (Long) f.getFileSize();
+				holder.fileSize.setText(fileSizeFormat(l) + " @" + position); //probably have to apply formatting here
+			}
+			if(holder.date != null) {
+				holder.date.setText("Last Opened: " + format.format(dateData));
+			}
+			if(holder.icon != null) {
+				holder.icon.setImageBitmap(f.getImage());
+			}
+			holder.date.bringToFront();
 			return v;
 		}
 		
 		public int getDPI(int size, DisplayMetrics metrics){
 		     return (size * metrics.densityDpi) / DisplayMetrics.DENSITY_DEFAULT;        
 		 }
-
 		private String fileSizeFormat(long size) {
 		    if(size <= 0) return "0 B";
 		    final String[] units = new String[] { "B", "KB", "MB", "GB", "TB" };
 		    int digitGroups = (int) (Math.log10(size)/Math.log10(1024));
 		    return new DecimalFormat("#,##0.##").format(size/Math.pow(1024, digitGroups)) + " " + units[digitGroups];
+		}
+	}
+	private class ViewHolder {
+		public TextView title;
+		public TextView fileSize;
+		public TextView date;
+		public ImageView icon;
+	}
+	
+	private class DriveClickListener implements OnClickListener{
+		boolean notExpanded = true;
+		boolean heightSet = false;
+		
+		DisplayMetrics metrics = new DisplayMetrics();
+		int defaultHeight;
+		@Override
+		public void onClick(View v) {
+			if(!heightSet) {
+				heightSet = true;
+				metrics = new DisplayMetrics();
+				getWindowManager().getDefaultDisplay().getMetrics(metrics);
+				defaultHeight = getDPI(64,metrics);
+			}
+			if(((ViewGroup)v).getChildCount() == 4){
+				notExpanded = true;
+			} else {
+				notExpanded = false;
+			}
+			// TODO Auto-generated method stub
+			if(notExpanded) {
+				expandView(v);
+				notExpanded = false;
+			} else {
+				collapseView(v);
+				notExpanded = true;
+			}
+		}
+		public int getDPI(int size, DisplayMetrics metrics){
+		     return (size * metrics.densityDpi) / DisplayMetrics.DENSITY_DEFAULT;        
+		 }
+		private View setupOptions(){
+			LayoutInflater buttonLayout = (LayoutInflater)getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+			View optionsInit = buttonLayout.inflate(R.layout.buttonbar, null);
+			
+			Button open = (Button) optionsInit.findViewById(R.id.open);
+			Button delete = (Button) optionsInit.findViewById(R.id.delete);
+			Button rename = (Button) optionsInit.findViewById(R.id.rename);
+
+			open.setOnClickListener(new View.OnClickListener() {            
+				public void onClick(View view) {
+					showToast("Open!");
+					showToast("Guess it's not working yet...");
+					//TODO: enable open button
+					//m_adapter.showFile(this.pos);
+				}
+			});
+			delete.setOnClickListener(new View.OnClickListener() {            
+				public void onClick(View view) {
+					showToast("Delete!");
+					showToast("Guess it's not working yet...");
+					//TODO: enable delete button
+				}
+			});
+			rename.setOnClickListener(new View.OnClickListener() {            
+				public void onClick(View view) {
+					showToast("Rename!");
+					showToast("Guess it's not working yet...");
+					//TODO: enable rename button
+				}
+			});
+			//TODO: re-arrange options bar
+			return optionsInit;
+		}
+		private void expandView(View v){
+			View options = setupOptions();			
+			//find the containing relative layout of a file
+			RelativeLayout fileListing= (RelativeLayout) v.findViewById(R.id.filerow);
+			//get settings for the layout of file
+			ViewGroup.LayoutParams settings = fileListing.getLayoutParams();
+			//set the width to the right size
+			metrics = new DisplayMetrics();
+			getWindowManager().getDefaultDisplay().getMetrics(metrics);
+			settings.height = defaultHeight + getDPI(30,metrics);
+			
+			
+			//apply the change
+			fileListing.setLayoutParams(settings);
+			fileListing.addView(options);
+			options = fileListing.getChildAt(4);
+			fileListing.removeViewAt(4);
+			RelativeLayout.LayoutParams optionBarSettings = new RelativeLayout.LayoutParams(options.getLayoutParams());
+			optionBarSettings.addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM);
+			options.setLayoutParams(optionBarSettings);
+			fileListing.addView(options);
+		}
+		protected void collapseView(View v) {
+			//find the containing relative layout of a file
+			RelativeLayout fileListing= (RelativeLayout) v.findViewById(R.id.filerow);
+			//get settings for the layout of file
+			RelativeLayout.LayoutParams settings = new RelativeLayout.LayoutParams(fileListing.getLayoutParams());
+			//set the width to the right size
+			View optionsBar = fileListing.findViewById(R.id.options); 
+			metrics = new DisplayMetrics();
+			getWindowManager().getDefaultDisplay().getMetrics(metrics);
+
+			settings.height = defaultHeight;
+			//apply the change
+			fileListing.setLayoutParams(new AbsListView.LayoutParams(settings));
+			while (((ViewGroup)v).getChildCount() > 4){
+				optionsBar = fileListing.findViewById(R.id.options);
+				optionsBar.invalidate();
+				fileListing.removeView(optionsBar);
+			}
+			//TODO: hide buttons on collapse
 		}
 	}
 }
