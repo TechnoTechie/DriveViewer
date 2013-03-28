@@ -256,7 +256,7 @@ public class MainActivity extends ListActivity {
 		            // do stuff in a separate thread
 		            updateFiles();
 		            uiCallback.sendEmptyMessage(0);		            
-		            Thread.sleep(3000);    // sleep for 3 seconds
+		            Thread.sleep(20000);    // sleep for 3 seconds
 		        }
 		    }
 		}
@@ -627,7 +627,6 @@ public class MainActivity extends ListActivity {
 				optionsBar.invalidate();
 				fileListing.removeView(optionsBar);
 			}
-			//TODO: hide buttons on collapse
 		}
 	}
 }
