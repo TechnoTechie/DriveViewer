@@ -15,6 +15,8 @@ import java.util.Locale;
 import com.google.api.client.extensions.android.http.AndroidHttp;
 import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential;
 import com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException;
+import com.google.api.client.http.GenericUrl;
+import com.google.api.client.http.HttpResponse;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.client.util.DateTime;
 import com.google.api.services.drive.Drive;
@@ -23,6 +25,7 @@ import com.google.api.services.drive.DriveScopes;
 import com.google.api.services.drive.model.File;
 import com.google.api.services.drive.model.FileList;
 
+import android.net.Uri;
 import android.os.Bundle;
 import android.accounts.AccountManager;
 import android.app.Activity;
@@ -61,7 +64,8 @@ public class MainActivity extends ListActivity {
 	static final int SPEED_ANIMATION_TRANSITION = 5;
 	static final int INITIAL_LOAD_COUNT = 10;
 	static final String REFERENCE = "com.example.driveviewer.DOWNLOAD_URL";
-
+	public enum Actions { OPEN, RENAME, DELETE };
+	
 	private static Drive service;
 	private GoogleAccountCredential credential;
 
@@ -94,66 +98,8 @@ public class MainActivity extends ListActivity {
 		
 		credential = GoogleAccountCredential.usingOAuth2(this, DriveScopes.DRIVE);
 		startActivityForResult(credential.newChooseAccountIntent(), REQUEST_ACCOUNT_PICKER);
-
-		//setListenersForList();
 	}
 	
-	private void setListenersForList() {
-		lv = getListView();
-		lv.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-		    int pos;
-			@Override
-		    public void onItemClick(AdapterView<?> av, View v, int pos, long id) {
-		        this.pos = pos;
-		        View viewToExpand = av.getChildAt(pos);
-		        showToast("yay a click!");
-				expandView(viewToExpand);
-		    }
-			
-			private void expandView(View v){
-				//find the containing relative layout of a file
-				RelativeLayout fileListing= (RelativeLayout) v.findViewById(R.id.filerow);
-				//get settings for the layout of file
-				ViewGroup.LayoutParams settings = fileListing.getLayoutParams();
-				//set the width to the right size
-				settings.width = 86;
-				fileListing.setLayoutParams(new RelativeLayout.LayoutParams(settings));
-				
-				LayoutInflater buttonLayout = (LayoutInflater)getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-				View options = buttonLayout.inflate(R.layout.buttonbar, null);
-				
-				Button open = (Button) options.findViewById(R.id.open);
-				Button delete = (Button) options.findViewById(R.id.delete);
-				Button rename = (Button) options.findViewById(R.id.rename);
-				
-				open.setOnClickListener(new View.OnClickListener() {            
-			        public void onClick(View view) {
-			        	showToast("Open!");
-			        	Intent i = new Intent(MainActivity.this, PDFViewer.class);
-			        	startActivity(i);
-			        	//TODO: enable open button
-			        	//m_adapter.showFile(this.pos);
-			        }
-			     });
-				delete.setOnClickListener(new View.OnClickListener() {            
-			        public void onClick(View view) {
-			        	showToast("Delete!");
-			        	showToast("Guess it's not working yet...");
-			        	//TODO: enable delete button
-			        }
-			     });
-				rename.setOnClickListener(new View.OnClickListener() {            
-			        public void onClick(View view) {
-			        	showToast("Rename!");
-			        	showToast("Guess it's not working yet...");
-			        	//TODO: enable rename button
-			        }
-			     });
-				fileListing.addView(options);
-				// TODO: modify view size to show/hide buttons
-			}
-		});
-	}
 	@Override
 	public void onActivityResult(int requestCode, int resultCode, Intent data) {
 		reDrawTheScreen();
@@ -324,7 +270,7 @@ public class MainActivity extends ListActivity {
 	
 	public class FileDisplay{		
 		private String id; //(String, used internally, hide from user)
-		private File fileLink;
+		private File fileLink; //drive file info
 		private String title; //(String, name of file)
 		private long fileSize; //size of the file
 		private String downloadUrl; //(String, to download file #viewingfiles)
@@ -339,7 +285,8 @@ public class MainActivity extends ListActivity {
 			this.lastViewedByMe = (file.getLastViewedByMeDate() != null) ? file.getLastViewedByMeDate() : file.getCreatedDate();
 			this.viewedYet = file.getLastViewedByMeDate() != null;
 			this.fileSize = file.getQuotaBytesUsed().longValue(); 
-			this.downloadUrl = file.getSelfLink();
+			this.downloadUrl = determineThumbnail(file.getMimeType()) ? file.getExportLinks().get("application/pdf") : file.getDownloadUrl();
+			
 			try {
 				this.image = BitmapFactory.decodeStream((InputStream) new URL(file.getIconLink()).getContent());
 			} catch (MalformedURLException e) {
@@ -395,27 +342,28 @@ public class MainActivity extends ListActivity {
 		public Bitmap getImage(){
 			return image;
 		}
-		/*
-		private Bitmap determineThumbnail(String mimeType){
+		
+		private boolean determineThumbnail(String mimeType){
 			if(mimeType.equalsIgnoreCase("application/vnd.google-apps.document")){
-				return BitmapFactory.decodeResource(getResources(), R.drawable.doc);
+				return true;
+				//BitmapFactory.decodeResource(getResources(), R.drawable.doc);
 			}
 			if(mimeType.equalsIgnoreCase("application/vnd.google-apps.presentation")){
-				return BitmapFactory.decodeResource(getResources(), R.drawable.presentation);
+				return true;
 			}
 			if(mimeType.equalsIgnoreCase("application/vnd.google-apps.spreadsheet")){
-				return BitmapFactory.decodeResource(getResources(), R.drawable.spread);
+				return true;
 			}
 			if(mimeType.equalsIgnoreCase("application/vnd.google-apps.folder")){
-				return BitmapFactory.decodeResource(getResources(), R.drawable.folder);
+				return false;
 			}
 			if(mimeType.equalsIgnoreCase("application/vnd.google-apps.drawing") ||
 			   mimeType.equalsIgnoreCase("application/vnd.google-apps.photo")	||
 			   mimeType.equalsIgnoreCase("application/vnd.google-apps.image") ){
-				return BitmapFactory.decodeResource(getResources(), R.drawable.image);
+				return false;
 			}
-			return BitmapFactory.decodeResource(getResources(), R.drawable.other);
-		}*/
+			return false;
+		}
 		public boolean isViewedYet() {
 			return viewedYet;
 		}
@@ -427,22 +375,13 @@ public class MainActivity extends ListActivity {
 	}
 	private class FileManager extends ArrayAdapter<FileDisplay>{
 		private ArrayList<FileDisplay> files;
-		private DriveClickListener clickListener = new DriveClickListener();
+		private DriveClickListener clickListener;
 		//private Drive service;
 
 		public FileManager(Context context, int textViewResourceId, ArrayList<FileDisplay> files, Drive service) {
 			super(context, textViewResourceId, files);
 			this.files = files;
 			//this.service = service;
-		}
-		public void showFile(int pos) {
-			FileDisplay f = files.get(pos);
-			String downloadURL = f.getId();
-			Intent intent = new Intent(MainActivity.this, PDFViewer.class);
-			intent.putExtra(REFERENCE, downloadURL);
-			//showToast(downloadURL);
-			showToast(f.getTitle());
-			//startActivity(intent);
 		}
 
 		@Override
@@ -453,6 +392,7 @@ public class MainActivity extends ListActivity {
 			Date dateData = new Date(f.getLastViewedByMe().getValue());
 			ViewHolder holder;
 			View v = convertView;
+			clickListener = new DriveClickListener(f);
 			if (v == null) {
 				LayoutInflater vi = (LayoutInflater)getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 				v = vi.inflate(R.layout.row, null);
@@ -526,8 +466,11 @@ public class MainActivity extends ListActivity {
 	}
 	
 	private class DriveClickListener implements OnClickListener{
+		FileDisplay fileContents;
 		boolean notExpanded = true;
 		boolean heightSet = false;
+		
+		public DriveClickListener(FileDisplay fileContents){ this.fileContents = fileContents; }
 		
 		DisplayMetrics metrics = new DisplayMetrics();
 		int defaultHeight;
@@ -539,12 +482,12 @@ public class MainActivity extends ListActivity {
 				getWindowManager().getDefaultDisplay().getMetrics(metrics);
 				defaultHeight = getDPI(64,metrics);
 			}
+			//TODO: quick fix for getting rid of the menu bar
 			if(((ViewGroup)v).getChildCount() == 4){
 				notExpanded = true;
 			} else {
 				notExpanded = false;
 			}
-			// TODO Auto-generated method stub
 			if(notExpanded) {
 				expandView(v);
 				notExpanded = false;
@@ -564,29 +507,13 @@ public class MainActivity extends ListActivity {
 			Button delete = (Button) optionsInit.findViewById(R.id.delete);
 			Button rename = (Button) optionsInit.findViewById(R.id.rename);
 
-			open.setOnClickListener(new View.OnClickListener() {            
-				public void onClick(View view) {
-					showToast("Open!");
-					showToast("Guess it's not working yet...");
-					//TODO: enable open button
-					//m_adapter.showFile(this.pos);
-				}
-			});
-			delete.setOnClickListener(new View.OnClickListener() {            
-				public void onClick(View view) {
-					showToast("Delete!");
-					showToast("Guess it's not working yet...");
-					//TODO: enable delete button
-				}
-			});
-			rename.setOnClickListener(new View.OnClickListener() {            
-				public void onClick(View view) {
-					showToast("Rename!");
-					showToast("Guess it's not working yet...");
-					//TODO: enable rename button
-				}
-			});
-			//TODO: re-arrange options bar
+			open.setOnClickListener(new MenuClickListener(fileContents, Actions.OPEN));
+			
+			delete.setOnClickListener(new MenuClickListener(fileContents, Actions.DELETE));
+			
+			rename.setOnClickListener(new MenuClickListener(fileContents, Actions.RENAME));
+			//TODO: enable rename button
+			
 			return optionsInit;
 		}
 		private void expandView(View v){
@@ -629,5 +556,67 @@ public class MainActivity extends ListActivity {
 				fileListing.removeView(optionsBar);
 			}
 		}
+	}
+	private class MenuClickListener implements OnClickListener {
+		FileDisplay fileContents;
+		Actions actionType;
+		Drive service;
+		
+		public MenuClickListener (FileDisplay fileContents, Actions actionType){
+			this.fileContents = fileContents;
+			this.actionType = actionType;
+			this.service = MainActivity.service;
+		}
+
+		@Override
+		public void onClick(View v) {
+			// TODO Auto-generated method stub
+			switch (actionType){
+			case OPEN:
+				showToast("Open!");
+				/**
+				 * Download a file's content.
+				 *
+				 * @param service Drive API service instance.
+				 * @param file Drive File instance.
+				 * @return InputStream containing the file's content if successful,
+				 *         {@code null} otherwise.
+				 */
+				if (fileContents.getDownloadUrl() != null && fileContents.getDownloadUrl().length() > 0) {
+					try {
+						HttpResponse resp =
+								this.service.getRequestFactory().buildGetRequest(new GenericUrl(fileContents.getDownloadUrl()))
+								.execute();
+						Intent pdfOpen = new Intent(Intent.ACTION_VIEW);
+						pdfOpen.setDataAndType(Uri.parse(fileContents.getDownloadUrl()), "application/pdf");
+						resp.getContent();
+						startActivity(pdfOpen);
+					} catch (IOException e) {
+						// An error occurred.
+						showToast("whaat D:");
+						e.printStackTrace();
+					}
+				} else {
+					// The file doesn't have any content stored on Drive.
+				}
+
+				break;
+			case RENAME:
+				showToast("Rename!");
+				showToast("...!");
+				showToast("Guess it's not working yet");
+				break;
+			case DELETE:
+				showToast("Delete!");
+				showToast("...!");
+				showToast("Guess it's not working yet");
+				break;
+			default:
+				showToast("oops! there's a bug somewhere...");
+				break;
+
+			}
+		}
+		
 	}
 }
