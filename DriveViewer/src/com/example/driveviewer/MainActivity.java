@@ -129,7 +129,8 @@ public class MainActivity extends ListActivity {
 				open.setOnClickListener(new View.OnClickListener() {            
 			        public void onClick(View view) {
 			        	showToast("Open!");
-			        	showToast("Guess it's not working yet...");
+			        	Intent i = new Intent(MainActivity.this, PDFViewer.class);
+			        	startActivity(i);
 			        	//TODO: enable open button
 			        	//m_adapter.showFile(this.pos);
 			        }
