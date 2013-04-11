@@ -167,7 +167,6 @@ public class MainActivity extends ListActivity {
 					updateData();
 					Thread.sleep(30000);
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 			}
@@ -183,7 +182,7 @@ public class MainActivity extends ListActivity {
 		List<File> fileList;
 		try {
 			files = new ArrayList<FileDisplay>();
-			fileList = retrieveAllFiles();
+			fileList = retrieveFiles("");
 			if(fileList != null) { //if returned files not null
 				showToast("Number of files in list: " + fileList.size());
 				for(File f:fileList){
@@ -193,7 +192,6 @@ public class MainActivity extends ListActivity {
 			}
 			m_files = files;
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		/* for updates
@@ -240,15 +238,17 @@ public class MainActivity extends ListActivity {
 		getMenuInflater().inflate(R.menu.activity_main, menu);
 		return true;
 	}
+	//TODO: File retrieval of folders and searching
 	/**
 	 * Retrieve a list of File resources. (Google Code)
 	 *
 	 * @param service Drive API service instance.
 	 * @return List of File resources.
 	 */
-	private List<File> retrieveAllFiles() throws IOException {
+	private List<File> retrieveFiles(String query) throws IOException {
 		List<File> result = new ArrayList<File>();
 		Files.List request = service.files().list();
+		if(query != null) { request.setQ(query); }
 		do {
 			try {
 				FileList files = request.execute();
@@ -267,7 +267,7 @@ public class MainActivity extends ListActivity {
 				request.getPageToken().length() > 0);
 		return result;
 	}
-	
+	//TODO: FileDisplay class
 	public class FileDisplay{		
 		private String id; //(String, used internally, hide from user)
 		private File fileLink; //drive file info
@@ -276,6 +276,7 @@ public class MainActivity extends ListActivity {
 		private String downloadUrl; //(String, to download file #viewingfiles)
 		private DateTime lastViewedByMe; //(DateTime, to allow sorting)
 		private boolean viewedYet;
+		private String mimeType;
 		private Bitmap image;
 
 		public FileDisplay(File file){
@@ -284,16 +285,15 @@ public class MainActivity extends ListActivity {
 			this.title = file.getTitle();
 			this.lastViewedByMe = (file.getLastViewedByMeDate() != null) ? file.getLastViewedByMeDate() : file.getCreatedDate();
 			this.viewedYet = file.getLastViewedByMeDate() != null;
-			this.fileSize = file.getQuotaBytesUsed().longValue(); 
-			this.downloadUrl = determineThumbnail(file.getMimeType()) ? file.getExportLinks().get("application/pdf") : file.getDownloadUrl();
+			this.fileSize = file.getQuotaBytesUsed().longValue();
+			this.mimeType = file.getMimeType();
+			this.downloadUrl = determineMimeType() ? file.getExportLinks().get("application/pdf") : file.getDownloadUrl();
 			
 			try {
 				this.image = BitmapFactory.decodeStream((InputStream) new URL(file.getIconLink()).getContent());
 			} catch (MalformedURLException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
@@ -326,7 +326,7 @@ public class MainActivity extends ListActivity {
 			return downloadUrl;
 		}
 		private void updateDownloadUrl(){
-			String newUrl = fileLink.getExportLinks().get("application/pdf");
+			String newUrl = determineMimeType() ? fileLink.getExportLinks().get("application/pdf") : fileLink.getDownloadUrl();
 			if(downloadUrl.compareTo(newUrl) != 0) {
 				downloadUrl = newUrl;			
 			}
@@ -336,14 +336,18 @@ public class MainActivity extends ListActivity {
 			return lastViewedByMe;
 		}
 		public void updateLastViewedBy() {
-			Date currentDate = new Date();
-			fileLink.setLastViewedByMeDate(new DateTime(currentDate)); //DateTime
-		}		
+			try {
+				service.files().touch(this.id).execute();
+			} catch (IOException e) {
+				System.out.println("An error occurred: " + e);
+			}
+		}
+		
 		public Bitmap getImage(){
 			return image;
 		}
 		
-		private boolean determineThumbnail(String mimeType){
+		private boolean determineMimeType(){
 			if(mimeType.equalsIgnoreCase("application/vnd.google-apps.document")){
 				return true;
 				//BitmapFactory.decodeResource(getResources(), R.drawable.doc);
@@ -370,17 +374,21 @@ public class MainActivity extends ListActivity {
 		public void setViewedYet(boolean viewedYet) {
 			this.viewedYet = viewedYet;
 		}
-		
-		
+		public String getMimeType() {
+			return mimeType;
+		}
 	}
+	//TODO: File Manager Class
 	private class FileManager extends ArrayAdapter<FileDisplay>{
 		private ArrayList<FileDisplay> files;
 		private DriveClickListener clickListener;
+		private List<String> path;
 		//private Drive service;
 
 		public FileManager(Context context, int textViewResourceId, ArrayList<FileDisplay> files, Drive service) {
 			super(context, textViewResourceId, files);
 			this.files = files;
+			this.path = new ArrayList<String>();
 			//this.service = service;
 		}
 
@@ -457,14 +465,19 @@ public class MainActivity extends ListActivity {
 		    int digitGroups = (int) (Math.log10(size)/Math.log10(1024));
 		    return new DecimalFormat("#,##0.##").format(size/Math.pow(1024, digitGroups)) + " " + units[digitGroups];
 		}
+		//TODO: openFolder and closeFolder to update paths
+		public void openFolder(File folder){
+			
+		}
 	}
+	//TODO: Viewholder class
 	private class ViewHolder {
 		public TextView title;
 		public TextView fileSize;
 		public TextView date;
 		public ImageView icon;
 	}
-	
+	//TODO: DriveClickListener class
 	private class DriveClickListener implements OnClickListener{
 		FileDisplay fileContents;
 		boolean notExpanded = true;
@@ -557,6 +570,7 @@ public class MainActivity extends ListActivity {
 			}
 		}
 	}
+	//TODO MenuClickListener class
 	private class MenuClickListener implements OnClickListener {
 		FileDisplay fileContents;
 		Actions actionType;
@@ -570,36 +584,15 @@ public class MainActivity extends ListActivity {
 
 		@Override
 		public void onClick(View v) {
-			// TODO Auto-generated method stub
 			switch (actionType){
 			case OPEN:
 				showToast("Open!");
-				/**
-				 * Download a file's content.
-				 *
-				 * @param service Drive API service instance.
-				 * @param file Drive File instance.
-				 * @return InputStream containing the file's content if successful,
-				 *         {@code null} otherwise.
-				 */
-				if (fileContents.getDownloadUrl() != null && fileContents.getDownloadUrl().length() > 0) {
-					try {
-						HttpResponse resp =
-								this.service.getRequestFactory().buildGetRequest(new GenericUrl(fileContents.getDownloadUrl()))
-								.execute();
-						Intent pdfOpen = new Intent(Intent.ACTION_VIEW);
-						pdfOpen.setDataAndType(Uri.parse(fileContents.getDownloadUrl()), "application/pdf");
-						resp.getContent();
-						startActivity(pdfOpen);
-					} catch (IOException e) {
-						// An error occurred.
-						showToast("whaat D:");
-						e.printStackTrace();
-					}
+				//determine file type
+				if (fileContents.getMimeType().equals("application/vnd.google-apps.folder")){
+					//TODO: folder explorer
 				} else {
-					// The file doesn't have any content stored on Drive.
+					openFile();
 				}
-
 				break;
 			case RENAME:
 				showToast("Rename!");
@@ -617,6 +610,32 @@ public class MainActivity extends ListActivity {
 
 			}
 		}
-		
+		public void openFile() {
+			/**
+			 * Download a file's content.
+			 *
+			 * @param service Drive API service instance.
+			 * @param file Drive File instance.
+			 * @return InputStream containing the file's content if successful,
+			 *         {@code null} otherwise.
+			 */
+			if (fileContents.getDownloadUrl() != null && fileContents.getDownloadUrl().length() > 0) {
+				try {
+					HttpResponse resp =
+							this.service.getRequestFactory().buildGetRequest(new GenericUrl(fileContents.getDownloadUrl()))
+							.execute();
+					Intent pdfOpen = new Intent(Intent.ACTION_VIEW);
+					pdfOpen.setDataAndType(Uri.parse(fileContents.getDownloadUrl()), "application/pdf");
+					resp.getContent();
+					startActivity(pdfOpen);
+				} catch (IOException e) {
+					// An error occurred.
+					showToast("whaat D:");
+					e.printStackTrace();
+				}
+			} else {
+				// The file doesn't have any content stored on Drive.
+			}
+		}
 	}
 }
