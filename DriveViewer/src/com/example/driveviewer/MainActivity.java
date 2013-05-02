@@ -628,20 +628,20 @@ public class MainActivity extends ListActivity {
 			if (fileContents.getDownloadUrl() != null && fileContents.getDownloadUrl().length() > 0) {
 				try {
 					showToast("Opening file!");
-					LayoutInflater vi = (LayoutInflater)getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-					WebView mWebView = (WebView) vi.inflate(R.layout.webview, null);
-					WebViewClient webClient = new WebViewClient();
+					//LayoutInflater vi = (LayoutInflater)getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+					//WebView mWebView = (WebView) vi.inflate(R.layout.webview, null);
+					WebView mWebView = (WebView) LayoutInflater.from(MainActivity.this).inflate(R.layout.webview, null);;
 					mWebView.clearView();
 
-					//mWebView.setWebViewClient(new WebViewClient());
+					mWebView.setWebViewClient(new Callback());
 
 					WebSettings webSettings = mWebView.getSettings();
 					webSettings.setJavaScriptEnabled(true);
 					webSettings.setPluginState(WebSettings.PluginState.ON);
 					
-					webClient.shouldOverrideUrlLoading(mWebView, fileContents.getDownloadUrl());
-					mWebView.loadUrl(fileContents.getDownloadUrl());
-					//setContentView(mWebView);
+					mWebView.loadUrl("www.google.co.kr");
+					//mWebView.loadData("<h1> Test </h1>", "text/html; charset=UTF-8", null);
+					setContentView(mWebView);
 				    //mWebView.loadUrl("https://docs.google.com/gview?embedded=true&url="+fileContents.getDownloadUrl());
 				    showToast("...");//setContentView(mWebView);
 				    showToast("Maybe...");
@@ -664,5 +664,11 @@ public class MainActivity extends ListActivity {
 				// The file doesn't have any content stored on Drive.
 			}
 		}
+	}
+	private class Callback extends WebViewClient{  //HERE IS THE MAIN CHANGE. 
+	    @Override
+	    public boolean shouldOverrideUrlLoading(WebView view, String url) {
+	        return (false);
+	    }
 	}
 }

@@ -21,7 +21,7 @@ import android.webkit.WebView;
  * @see SystemUiHider
  */
 @SuppressLint("SetJavaScriptEnabled")
-public class PDFViewer extends Activity {
+public class ViewerActivity extends Activity {
 	/**
 	 * Whether or not the system UI should be auto-hidden after
 	 * {@link #AUTO_HIDE_DELAY_MILLIS} milliseconds.
@@ -122,7 +122,7 @@ public class PDFViewer extends Activity {
 		// while interacting with the UI.
 		findViewById(R.id.dummy_button).setOnTouchListener(mDelayHideTouchListener);
 		
-		WebView mWebView=new WebView(PDFViewer.this);
+		WebView mWebView=new WebView(ViewerActivity.this);
 	    mWebView.getSettings().setJavaScriptEnabled(true);
 	    mWebView.getSettings().setPluginState(WebSettings.PluginState.ON);
 	    mWebView.loadUrl("https://docs.google.com/feeds/download/drawings/Export?id=" + downloadURL + "&exportFormat=pdf");

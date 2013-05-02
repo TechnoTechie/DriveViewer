@@ -27,7 +27,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="com.example.driveviewer.PDFViewer"
+            android:name="com.example.driveviewer.ViewerActivity"
             android:configChanges="orientation|keyboardHidden|screenSize"
             android:label="@string/title_activity_pdfviewer"
             android:theme="@style/FullscreenTheme" >
