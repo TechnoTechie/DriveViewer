@@ -28,10 +28,13 @@ import com.google.api.services.drive.model.FileList;
 import android.net.Uri;
 import android.os.Bundle;
 import android.accounts.AccountManager;
+import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.ListActivity;
 import android.app.ProgressDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
@@ -43,6 +46,10 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
+import android.webkit.WebChromeClient;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
@@ -287,8 +294,7 @@ public class MainActivity extends ListActivity {
 			this.viewedYet = file.getLastViewedByMeDate() != null;
 			this.fileSize = file.getQuotaBytesUsed().longValue();
 			this.mimeType = file.getMimeType();
-			this.downloadUrl = determineMimeType() ? file.getExportLinks().get("application/pdf") : file.getDownloadUrl();
-			
+			this.downloadUrl = file.getAlternateLink(); // lolol determineMimeType() ? file.getExportLinks().get("application/pdf") : file.getDownloadUrl();
 			try {
 				this.image = BitmapFactory.decodeStream((InputStream) new URL(file.getIconLink()).getContent());
 			} catch (MalformedURLException e) {
@@ -332,7 +338,6 @@ public class MainActivity extends ListActivity {
 			}
 		}
 		public DateTime getLastViewedByMe() {
-			updateLastViewedBy();
 			return lastViewedByMe;
 		}
 		public void updateLastViewedBy() {
@@ -610,6 +615,7 @@ public class MainActivity extends ListActivity {
 
 			}
 		}
+		@SuppressLint("SetJavaScriptEnabled")
 		public void openFile() {
 			/**
 			 * Download a file's content.
@@ -621,7 +627,26 @@ public class MainActivity extends ListActivity {
 			 */
 			if (fileContents.getDownloadUrl() != null && fileContents.getDownloadUrl().length() > 0) {
 				try {
-					HttpResponse resp =
+					showToast("Opening file!");
+					LayoutInflater vi = (LayoutInflater)getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+					WebView mWebView = (WebView) vi.inflate(R.layout.webview, null);
+					WebViewClient webClient = new WebViewClient();
+					mWebView.clearView();
+
+					//mWebView.setWebViewClient(new WebViewClient());
+
+					WebSettings webSettings = mWebView.getSettings();
+					webSettings.setJavaScriptEnabled(true);
+					webSettings.setPluginState(WebSettings.PluginState.ON);
+					
+					webClient.shouldOverrideUrlLoading(mWebView, fileContents.getDownloadUrl());
+					mWebView.loadUrl(fileContents.getDownloadUrl());
+					//setContentView(mWebView);
+				    //mWebView.loadUrl("https://docs.google.com/gview?embedded=true&url="+fileContents.getDownloadUrl());
+				    showToast("...");//setContentView(mWebView);
+				    showToast("Maybe...");
+					/*
+				    HttpResponse resp =
 							this.service.getRequestFactory().buildGetRequest(new GenericUrl(fileContents.getDownloadUrl()))
 							.execute();
 					Intent pdfOpen = new Intent(Intent.ACTION_VIEW);
@@ -631,9 +656,11 @@ public class MainActivity extends ListActivity {
 				} catch (IOException e) {
 					// An error occurred.
 					showToast("whaat D:");
-					e.printStackTrace();
-				}
+					e.printStackTrace();//*/
+				} finally {}
 			} else {
+				showToast("...");
+				showToast("File was empty...");
 				// The file doesn't have any content stored on Drive.
 			}
 		}
