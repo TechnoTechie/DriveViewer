@@ -1,6 +1,11 @@
 package com.example.driveviewer;
 
+import java.io.IOException;
+
 import com.example.driveviewer.util.SystemUiHider;
+import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential;
+import com.google.api.services.drive.Drive;
+import com.google.api.services.drive.model.File;
 
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
@@ -9,10 +14,12 @@ import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 
 /**
  * An example full-screen activity that shows and hides the system UI (i.e.
@@ -49,17 +56,40 @@ public class ViewerActivity extends Activity {
 	 * The instance of the {@link SystemUiHider} for this activity.
 	 */
 	private SystemUiHider mSystemUiHider;
+	
+	private static Drive service;
+	private GoogleAccountCredential credential;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_pdfviewer);
 		Intent intent = getIntent();
-		String downloadURL = intent.getStringExtra(MainActivity.REFERENCE);
+		//service = MainActivity.getService();
+		//credential = MainActivity.getCredential();
+		String fileID = intent.getStringExtra(MainActivity.FILE_NUMBER);
+		String downloadURL;
+		try {
+			downloadURL = service.files().get(fileID).execute().getAlternateLink();
+		} catch (IOException e) {
+			downloadURL = null;
+			e.printStackTrace();
+		}
+		
 
 		final View controlsView = findViewById(R.id.fullscreen_content_controls);
 		final View contentView = findViewById(R.id.fullscreen_content);
+		
+		WebView mWebView = (WebView) LayoutInflater.from(ViewerActivity.this).inflate(R.layout.webview, null);
+		mWebView.clearView();
 
+		mWebView.setWebViewClient(new WebViewClient());
+
+		WebSettings webSettings = mWebView.getSettings();
+		webSettings.setJavaScriptEnabled(true);
+		webSettings.setPluginState(WebSettings.PluginState.ON);
+	    mWebView.loadUrl(downloadURL);
+	    setContentView(mWebView);
 		// Set up an instance of SystemUiHider to control the system UI for
 		// this activity.
 		mSystemUiHider = SystemUiHider.getInstance(this, contentView,
@@ -120,13 +150,7 @@ public class ViewerActivity extends Activity {
 		// Upon interacting with UI controls, delay any scheduled hide()
 		// operations to prevent the jarring behavior of controls going away
 		// while interacting with the UI.
-		findViewById(R.id.dummy_button).setOnTouchListener(mDelayHideTouchListener);
-		
-		WebView mWebView=new WebView(ViewerActivity.this);
-	    mWebView.getSettings().setJavaScriptEnabled(true);
-	    mWebView.getSettings().setPluginState(WebSettings.PluginState.ON);
-	    mWebView.loadUrl("https://docs.google.com/feeds/download/drawings/Export?id=" + downloadURL + "&exportFormat=pdf");
-	    setContentView(mWebView);
+		mWebView.setOnTouchListener(mDelayHideTouchListener);
 	}
 
 	@Override

@@ -15,8 +15,6 @@ import java.util.Locale;
 import com.google.api.client.extensions.android.http.AndroidHttp;
 import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential;
 import com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException;
-import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpResponse;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.client.util.DateTime;
 import com.google.api.services.drive.Drive;
@@ -25,16 +23,13 @@ import com.google.api.services.drive.DriveScopes;
 import com.google.api.services.drive.model.File;
 import com.google.api.services.drive.model.FileList;
 
-import android.net.Uri;
 import android.os.Bundle;
 import android.accounts.AccountManager;
 import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.app.ListActivity;
 import android.app.ProgressDialog;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
@@ -46,7 +41,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
-import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -58,7 +52,6 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.RelativeLayout;
-import android.widget.RelativeLayout.LayoutParams;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -71,10 +64,12 @@ public class MainActivity extends ListActivity {
 	static final int SPEED_ANIMATION_TRANSITION = 5;
 	static final int INITIAL_LOAD_COUNT = 10;
 	static final String REFERENCE = "com.example.driveviewer.DOWNLOAD_URL";
+	static final String DRIVE_SERVICE = "com.example.driveviewer.DRIVE_SERVICE";
+	static final String FILE_NUMBER = "com.example.driveviewer.FILE_NUMBER";
 	public enum Actions { OPEN, RENAME, DELETE };
 	
 	private static Drive service;
-	private GoogleAccountCredential credential;
+	private static GoogleAccountCredential credential;
 
 	private ProgressDialog m_ProgressDialog = null; 
 	private ArrayList<FileDisplay> m_files = null;
@@ -628,20 +623,27 @@ public class MainActivity extends ListActivity {
 			if (fileContents.getDownloadUrl() != null && fileContents.getDownloadUrl().length() > 0) {
 				try {
 					showToast("Opening file!");
+					//Intent webViewIntent = new Intent(MainActivity.this, ViewerActivity.class);
+					//webViewIntent.putExtra(REFERENCE, fileContents.getDownloadUrl());
+					//webViewIntent.putExtra(FILE_NUMBER, fileContents.getId());
+					//startActivity(webViewIntent);
 					//LayoutInflater vi = (LayoutInflater)getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 					//WebView mWebView = (WebView) vi.inflate(R.layout.webview, null);
+					ListView newList = (ListView) findViewById(android.R.id.list);
+					
 					WebView mWebView = (WebView) LayoutInflater.from(MainActivity.this).inflate(R.layout.webview, null);;
+					
 					mWebView.clearView();
 
-					mWebView.setWebViewClient(new Callback());
+					//mWebView.setWebViewClient(new WebViewClient());
 
 					WebSettings webSettings = mWebView.getSettings();
 					webSettings.setJavaScriptEnabled(true);
 					webSettings.setPluginState(WebSettings.PluginState.ON);
 					
-					mWebView.loadUrl("www.google.co.kr");
+					mWebView.loadUrl(fileContents.getDownloadUrl());
 					//mWebView.loadData("<h1> Test </h1>", "text/html; charset=UTF-8", null);
-					setContentView(mWebView);
+					//setContentView(newList);
 				    //mWebView.loadUrl("https://docs.google.com/gview?embedded=true&url="+fileContents.getDownloadUrl());
 				    showToast("...");//setContentView(mWebView);
 				    showToast("Maybe...");
@@ -664,11 +666,5 @@ public class MainActivity extends ListActivity {
 				// The file doesn't have any content stored on Drive.
 			}
 		}
-	}
-	private class Callback extends WebViewClient{  //HERE IS THE MAIN CHANGE. 
-	    @Override
-	    public boolean shouldOverrideUrlLoading(WebView view, String url) {
-	        return (false);
-	    }
 	}
 }
