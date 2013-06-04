@@ -2,5 +2,5 @@
 -keep class com.example.driveviewer.MainActivity { <init>(...); }
 
 # view AndroidManifest.xml #generated:29
--keep class com.example.driveviewer.PDFViewer { <init>(...); }
+-keep class com.example.driveviewer.ViewerActivity { <init>(...); }
 
