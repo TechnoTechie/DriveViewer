@@ -2,6 +2,7 @@ package com.example.driveviewer;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.text.DecimalFormat;
@@ -11,23 +12,26 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import com.google.api.client.extensions.android.http.AndroidHttp;
 import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential;
 import com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException;
-import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpResponse;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.client.util.DateTime;
 import com.google.api.services.drive.Drive;
+import com.google.api.services.drive.Drive.Changes;
 import com.google.api.services.drive.Drive.Files;
 import com.google.api.services.drive.DriveScopes;
+import com.google.api.services.drive.model.Change;
+import com.google.api.services.drive.model.ChangeList;
 import com.google.api.services.drive.model.File;
 import com.google.api.services.drive.model.FileList;
 
-import android.net.Uri;
 import android.os.Bundle;
 import android.accounts.AccountManager;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.ListActivity;
 import android.app.ProgressDialog;
@@ -43,6 +47,9 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
@@ -51,7 +58,6 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.RelativeLayout;
-import android.widget.RelativeLayout.LayoutParams;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -64,44 +70,55 @@ public class MainActivity extends ListActivity {
 	static final int SPEED_ANIMATION_TRANSITION = 5;
 	static final int INITIAL_LOAD_COUNT = 10;
 	static final String REFERENCE = "com.example.driveviewer.DOWNLOAD_URL";
+	static final String DRIVE_SERVICE = "com.example.driveviewer.DRIVE_SERVICE";
+	static final String FILE_NUMBER = "com.example.driveviewer.FILE_NUMBER";
 	public enum Actions { OPEN, RENAME, DELETE };
+	public enum AppStatus { LOGIN, LIST, VIEW };
 	
 	private static Drive service;
-	private GoogleAccountCredential credential;
+	private static GoogleAccountCredential credential;
 
 	private ProgressDialog m_ProgressDialog = null; 
 	private ArrayList<FileDisplay> m_files = null;
 	private FileManager m_adapter;
 	private Runnable viewOrders;
 	private TextView debug;
-	private ListView lv;
+	private ListView myCustomWebViewer;
+	private AppStatus state;
+	private Date lastAccessDate = new Date(0);
+	private Timer syncTimer = null;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
-		showToast("Activity Started!");
-		m_files = new ArrayList<FileDisplay>();
-		this.m_adapter = new FileManager(this, R.layout.row, m_files, service);
-		setListAdapter(this.m_adapter);
-		debug = (TextView) findViewById(R.id.empty);
-		debug.setText("");
+		//webLoaderTest();
+		//String htmlTest = "<html><body>Hello page 1</body></html>";
+		appInit();
+	}
+	
+	private void webLoaderTest() {
+		//ArrayList<WebView> webs = new ArrayList<WebView>();
+		myCustomWebViewer = (ListView) findViewById(android.R.id.list);
+		WebView mWebView = (WebView) LayoutInflater.from(MainActivity.this).inflate(R.layout.webview, null);;
 		
-		lv = getListView();
-		lv.setClickable(true);
-		lv.setOnItemClickListener(new OnItemClickListener() {
-			@Override
-			public void onItemClick(AdapterView<?> av, View v, int pos, long id) {
-				showToast("yay a click! item #" + pos + " clicked.");
-			}
-		});
+		mWebView.clearView();
+
+		mWebView.setWebViewClient(new WebViewClient());
+
+		WebSettings webSettings = mWebView.getSettings();
+		webSettings.setJavaScriptEnabled(true);
+		webSettings.setPluginState(WebSettings.PluginState.ON);
 		
-		credential = GoogleAccountCredential.usingOAuth2(this, DriveScopes.DRIVE);
-		startActivityForResult(credential.newChooseAccountIntent(), REQUEST_ACCOUNT_PICKER);
+		mWebView.loadUrl("http://www.google.com");
+		//webs.add(mWebView);
+		//WebArray test = new WebArray(this, R.layout.row, webs, service);
+		myCustomWebViewer.addView(mWebView);
+		setContentView(myCustomWebViewer);
 	}
 	
 	@Override
-	public void onActivityResult(int requestCode, int resultCode, Intent data) {
+ 	public void onActivityResult(int requestCode, int resultCode, Intent data) {
 		reDrawTheScreen();
 		switch(requestCode){
 			case REQUEST_ACCOUNT_PICKER:
@@ -133,17 +150,86 @@ public class MainActivity extends ListActivity {
 	  super.onConfigurationChanged(newConfig);
 	  setContentView(R.layout.activity_main);
 	}
+	/** 
+	 * Create a new list and send it to the adapter, tell it to redraw
+	 */
 	private void reDrawTheScreen(){
 		m_files = new ArrayList<FileDisplay>();
 		this.m_adapter = new FileManager(this, R.layout.row, m_files, service);
 		setListAdapter(this.m_adapter);
 		m_adapter.notifyDataSetChanged();
 	}
+	private void appInit() {
+		state = AppStatus.LOGIN;
+		m_files = new ArrayList<FileDisplay>();
+		this.m_adapter = new FileManager(this, R.layout.row, m_files, service);
+		setListAdapter(this.m_adapter);
+		debug = (TextView) findViewById(R.id.empty);
+		debug.setText("");
+		
+		myCustomWebViewer = (ListView) findViewById(android.R.id.list);
+		
+		credential = GoogleAccountCredential.usingOAuth2(this, DriveScopes.DRIVE);
+		startActivityForResult(credential.newChooseAccountIntent(), REQUEST_ACCOUNT_PICKER);
+		
+		setupTimer();
+	}
+	@Override
+	public void onResume() {
+		super.onResume();
+		setupTimer();
+	}
+	private void setupTimer() {
+		if(syncTimer == null) {
+			syncTimer = new Timer();
+			syncTimer.schedule(new TimerTask() {
+				@Override
+				public void run() {
+					runOnUiThread(new Runnable() {
+						public void run() {
+							//TODO: //checkForUpdates();
+						}
+					});
+				}
+			}, 30000, 30000); }
+	}
+	private void checkForUpdates(){
+		showToast("Checking for updates");
+		if(state == AppStatus.VIEW){
+			//then do updates for just that file
+		} else if(state == AppStatus.LIST) {
+			try {
+				if(detectChanges()) {
+					//if there were changes
+					//then notify user: pop-up box is too interrupting
+					//  next option is something more subtle
+					//  what's more subtle?
+					
+					//small click-able drop-down box at the top of the page?
+					
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			//then check for updates to the entire list
+		} else {
+			//if the app is here, that means that it's still on login screen
+			//do nothing
+		}
+		//TODO: finish up updates
+	}
+
+	@Override
+	public void onPause() {
+		syncTimer.cancel();
+		syncTimer = null;
+		super.onPause();
+	}
     /**
      * Event Handling for Individual menu item selected
-     * Identify single menu item by it's id
+     * Identify single menu item by it's id - Only menu item used in this app is the logout function
      * */
-    @Override
+	@Override
     public boolean onOptionsItemSelected(MenuItem item)
     {
         int itemId = item.getItemId();
@@ -155,27 +241,29 @@ public class MainActivity extends ListActivity {
         	return super.onOptionsItemSelected(item);
         }
     }
+    /**
+     * Logout by refreshing credentials
+     */
     private void logout(){
-    	
 		startActivityForResult(credential.newChooseAccountIntent(), REQUEST_ACCOUNT_PICKER);
     }
 	private void startFileGet(){
+		state = AppStatus.LIST;
 		viewOrders = new Runnable(){			
 			@Override
 			public void run() {				
 				try {
 					updateData();
-					Thread.sleep(30000);
+					Thread.sleep(10000);
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 			}
-		};
+		}; 
 		Thread thread =  new Thread(null, viewOrders, "MagentoBackground");
 		thread.start();
 		m_ProgressDialog = ProgressDialog.show(MainActivity.this,    
-				"Please wait...", "Retrieving data ...", true);
+				"Please wait...", "Retrieving data ...", true); 
 	}
 	private void updateData(){
 		ArrayList<FileDisplay> files;
@@ -183,7 +271,7 @@ public class MainActivity extends ListActivity {
 		List<File> fileList;
 		try {
 			files = new ArrayList<FileDisplay>();
-			fileList = retrieveAllFiles();
+			fileList = retrieveFiles("");
 			if(fileList != null) { //if returned files not null
 				showToast("Number of files in list: " + fileList.size());
 				for(File f:fileList){
@@ -193,21 +281,8 @@ public class MainActivity extends ListActivity {
 			}
 			m_files = files;
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		/* for updates
-		Thread timer = new Thread() {
-		    public void run () {
-		        for (;;) {
-		            // do stuff in a separate thread
-		            updateFiles();
-		            uiCallback.sendEmptyMessage(0);		            
-		            Thread.sleep(20000);    // sleep for 3 seconds
-		        }
-		    }
-		}
-		timer.start();*/
 		runOnUiThread(returnRes);
 	}
 	private Drive getDriveService(GoogleAccountCredential credential) {
@@ -240,25 +315,27 @@ public class MainActivity extends ListActivity {
 		getMenuInflater().inflate(R.menu.activity_main, menu);
 		return true;
 	}
+	//TODO: File retrieval of folders and searching
 	/**
 	 * Retrieve a list of File resources. (Google Code)
 	 *
 	 * @param service Drive API service instance.
 	 * @return List of File resources.
 	 */
-	private List<File> retrieveAllFiles() throws IOException {
+	private List<File> retrieveFiles(String query) throws IOException {
 		List<File> result = new ArrayList<File>();
 		Files.List request = service.files().list();
+		if(query != null) { request.setQ(query); }
 		do {
 			try {
+				showToast("retrieving files");
 				FileList files = request.execute();
 				
 				result.addAll(files.getItems());
 				request.setPageToken(files.getNextPageToken());
 			}  catch (UserRecoverableAuthIOException e) {
 		          startActivityForResult(e.getIntent(), REQUEST_AUTHORIZATION);
-		    } 
-			catch (IOException e) {
+		    }  catch (IOException e) {
 				showToast("e: " + e);
 				System.out.println("An error occurred: " + e);
 				request.setPageToken(null);
@@ -267,7 +344,30 @@ public class MainActivity extends ListActivity {
 				request.getPageToken().length() > 0);
 		return result;
 	}
-	
+	private boolean detectChanges() throws IOException{
+		ArrayList<FileDisplay> files;
+		//getFileList from google and add files to array
+		List<File> fileList;
+		try {
+			files = new ArrayList<FileDisplay>();
+			fileList = retrieveFiles("");
+			if(fileList != null) { //if returned files not null
+				for(File f:fileList){
+					//wrap files in file wrapper
+					if(new Date(f.getModifiedDate().getValue()).compareTo(lastAccessDate) < 0) {
+						showToast("Chaaaanges...!");
+						return true;
+					}
+				}
+			}
+			m_files = files;
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		showToast("No change...");
+		return false;
+	}
+	//TODO: FileDisplay class
 	public class FileDisplay{		
 		private String id; //(String, used internally, hide from user)
 		private File fileLink; //drive file info
@@ -276,6 +376,7 @@ public class MainActivity extends ListActivity {
 		private String downloadUrl; //(String, to download file #viewingfiles)
 		private DateTime lastViewedByMe; //(DateTime, to allow sorting)
 		private boolean viewedYet;
+		private String mimeType;
 		private Bitmap image;
 
 		public FileDisplay(File file){
@@ -284,20 +385,17 @@ public class MainActivity extends ListActivity {
 			this.title = file.getTitle();
 			this.lastViewedByMe = (file.getLastViewedByMeDate() != null) ? file.getLastViewedByMeDate() : file.getCreatedDate();
 			this.viewedYet = file.getLastViewedByMeDate() != null;
-			this.fileSize = file.getQuotaBytesUsed().longValue(); 
-			this.downloadUrl = determineThumbnail(file.getMimeType()) ? file.getExportLinks().get("application/pdf") : file.getDownloadUrl();
-			
+			this.fileSize = file.getQuotaBytesUsed().longValue();
+			this.mimeType = file.getMimeType();
+			this.downloadUrl = file.getAlternateLink();
 			try {
 				this.image = BitmapFactory.decodeStream((InputStream) new URL(file.getIconLink()).getContent());
 			} catch (MalformedURLException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
-
 		public String getId() {
 			return id;
 		}
@@ -326,24 +424,27 @@ public class MainActivity extends ListActivity {
 			return downloadUrl;
 		}
 		private void updateDownloadUrl(){
-			String newUrl = fileLink.getExportLinks().get("application/pdf");
+			String newUrl = determineMimeType() ? fileLink.getExportLinks().get("application/pdf") : fileLink.getDownloadUrl();
 			if(downloadUrl.compareTo(newUrl) != 0) {
 				downloadUrl = newUrl;			
 			}
 		}
 		public DateTime getLastViewedByMe() {
-			updateLastViewedBy();
 			return lastViewedByMe;
 		}
 		public void updateLastViewedBy() {
-			Date currentDate = new Date();
-			fileLink.setLastViewedByMeDate(new DateTime(currentDate)); //DateTime
-		}		
+			try {
+				service.files().touch(this.id).execute();
+			} catch (IOException e) {
+				System.out.println("An error occurred: " + e);
+			}
+		}
+		
 		public Bitmap getImage(){
 			return image;
 		}
 		
-		private boolean determineThumbnail(String mimeType){
+		private boolean determineMimeType(){
 			if(mimeType.equalsIgnoreCase("application/vnd.google-apps.document")){
 				return true;
 				//BitmapFactory.decodeResource(getResources(), R.drawable.doc);
@@ -370,17 +471,21 @@ public class MainActivity extends ListActivity {
 		public void setViewedYet(boolean viewedYet) {
 			this.viewedYet = viewedYet;
 		}
-		
-		
+		public String getMimeType() {
+			return mimeType;
+		}
 	}
+	//TODO: File Manager Class
 	private class FileManager extends ArrayAdapter<FileDisplay>{
 		private ArrayList<FileDisplay> files;
 		private DriveClickListener clickListener;
+		private List<String> path;
 		//private Drive service;
 
 		public FileManager(Context context, int textViewResourceId, ArrayList<FileDisplay> files, Drive service) {
 			super(context, textViewResourceId, files);
 			this.files = files;
+			this.path = new ArrayList<String>();
 			//this.service = service;
 		}
 
@@ -436,7 +541,7 @@ public class MainActivity extends ListActivity {
 			}
 			if(holder.fileSize != null){
 				Long l = (Long) f.getFileSize();
-				holder.fileSize.setText(fileSizeFormat(l) + " @" + position); //probably have to apply formatting here
+				holder.fileSize.setText(fileSizeFormat(l)); //probably have to apply formatting here
 			}
 			if(holder.date != null) {
 				holder.date.setText("Last Opened: " + format.format(dateData));
@@ -452,10 +557,14 @@ public class MainActivity extends ListActivity {
 		     return (size * metrics.densityDpi) / DisplayMetrics.DENSITY_DEFAULT;        
 		 }
 		private String fileSizeFormat(long size) {
-		    if(size <= 0) return "0 B";
+		    if(size <= 1000) return "1 KB";
 		    final String[] units = new String[] { "B", "KB", "MB", "GB", "TB" };
 		    int digitGroups = (int) (Math.log10(size)/Math.log10(1024));
 		    return new DecimalFormat("#,##0.##").format(size/Math.pow(1024, digitGroups)) + " " + units[digitGroups];
+		}
+		//TODO: openFolder and closeFolder to update paths
+		public void openFolder(File folder){
+			
 		}
 	}
 	private class ViewHolder {
@@ -464,7 +573,6 @@ public class MainActivity extends ListActivity {
 		public TextView date;
 		public ImageView icon;
 	}
-	
 	private class DriveClickListener implements OnClickListener{
 		FileDisplay fileContents;
 		boolean notExpanded = true;
@@ -482,7 +590,7 @@ public class MainActivity extends ListActivity {
 				getWindowManager().getDefaultDisplay().getMetrics(metrics);
 				defaultHeight = getDPI(64,metrics);
 			}
-			//TODO: quick fix for getting rid of the menu bar
+			//TODO: quick fix for getting rid of the multiple menu bars
 			if(((ViewGroup)v).getChildCount() == 4){
 				notExpanded = true;
 			} else {
@@ -557,49 +665,27 @@ public class MainActivity extends ListActivity {
 			}
 		}
 	}
+	//TODO MenuClickListener class
 	private class MenuClickListener implements OnClickListener {
 		FileDisplay fileContents;
 		Actions actionType;
 		Drive service;
-		
 		public MenuClickListener (FileDisplay fileContents, Actions actionType){
 			this.fileContents = fileContents;
 			this.actionType = actionType;
 			this.service = MainActivity.service;
 		}
-
 		@Override
 		public void onClick(View v) {
-			// TODO Auto-generated method stub
 			switch (actionType){
 			case OPEN:
 				showToast("Open!");
-				/**
-				 * Download a file's content.
-				 *
-				 * @param service Drive API service instance.
-				 * @param file Drive File instance.
-				 * @return InputStream containing the file's content if successful,
-				 *         {@code null} otherwise.
-				 */
-				if (fileContents.getDownloadUrl() != null && fileContents.getDownloadUrl().length() > 0) {
-					try {
-						HttpResponse resp =
-								this.service.getRequestFactory().buildGetRequest(new GenericUrl(fileContents.getDownloadUrl()))
-								.execute();
-						Intent pdfOpen = new Intent(Intent.ACTION_VIEW);
-						pdfOpen.setDataAndType(Uri.parse(fileContents.getDownloadUrl()), "application/pdf");
-						resp.getContent();
-						startActivity(pdfOpen);
-					} catch (IOException e) {
-						// An error occurred.
-						showToast("whaat D:");
-						e.printStackTrace();
-					}
+				//determine file type
+				if (fileContents.getMimeType().equals("application/vnd.google-apps.folder")){
+					//TODO: folder explorer
 				} else {
-					// The file doesn't have any content stored on Drive.
+					openFile();
 				}
-
 				break;
 			case RENAME:
 				showToast("Rename!");
@@ -617,6 +703,82 @@ public class MainActivity extends ListActivity {
 
 			}
 		}
+		@SuppressLint("SetJavaScriptEnabled")
+		public void openFile() {
+			/**
+			 * Download a file's content.
+			 *
+			 * @param service Drive API service instance.
+			 * @param file Drive File instance.
+			 * @return InputStream containing the file's content if successful,
+			 *         {@code null} otherwise.
+			 */
+			if (fileContents.getDownloadUrl() != null && fileContents.getDownloadUrl().length() > 0) {
+				try {
+					showToast("Opening file!");
+					state = AppStatus.VIEW;
+					//Intent webViewIntent = new Intent(MainActivity.this, ViewerActivity.class);
+					//webViewIntent.putExtra(REFERENCE, fileContents.getDownloadUrl());
+					//webViewIntent.putExtra(FILE_NUMBER, fileContents.getId());
+					//startActivity(webViewIntent);
+					
+					//LayoutInflater vi = (LayoutInflater)getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+					//WebView mWebView = (WebView) vi.inflate(R.layout.webview, null);
+					//ListView newList = (ListView) findViewById(android.R.id.list);
+					
+					WebView mWebView = (WebView) LayoutInflater.from(MainActivity.this).inflate(R.layout.webview, null);;
+					
+					mWebView.clearView();
+
+					mWebView.setWebViewClient(new WebViewClient());
+
+					WebSettings webSettings = mWebView.getSettings();
+					webSettings.setJavaScriptEnabled(true);
+					webSettings.setPluginState(WebSettings.PluginState.ON);
+					
+					mWebView.loadUrl(fileContents.getDownloadUrl());
+					myCustomWebViewer.addView(mWebView);
+					setContentView(myCustomWebViewer);
+					//mWebView.loadData("<h1> Test </h1>", "text/html; charset=UTF-8", null);
+					//setContentView(newList);
+				    //mWebView.loadUrl("https://docs.google.com/gview?embedded=true&url="+fileContents.getDownloadUrl());
+				    showToast("...");//setContentView(mWebView);
+				    showToast("Maybe...");
+					/*
+				    HttpResponse resp =
+							this.service.getRequestFactory().buildGetRequest(new GenericUrl(fileContents.getDownloadUrl()))
+							.execute();
+					Intent pdfOpen = new Intent(Intent.ACTION_VIEW);
+					pdfOpen.setDataAndType(Uri.parse(fileContents.getDownloadUrl()), "application/pdf");
+					resp.getContent();
+					startActivity(pdfOpen);
+				} catch (IOException e) {
+					// An error occurred.
+					showToast("whaat D:");
+					e.printStackTrace();//*/
+				} finally { 
+					setContentView(R.layout.activity_main);
+				}
+			} else {
+				showToast("...");
+				showToast("File was empty...");
+				// The file doesn't have any content stored on Drive.
+			}
+		}
+	}
+	private class WebArray extends ArrayAdapter<WebView> {
+		private ArrayList<WebView> files;
 		
+		//private Drive service;
+		public WebArray (Context context, int textViewResourceId, ArrayList<WebView> file, Drive service) {
+			super(context, textViewResourceId);
+			this.files = file;
+			//this.service = service;
+		}
+		@Override
+		public View getView(int position, View convertView, ViewGroup parent) {
+			LayoutInflater vi = (LayoutInflater)getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+			return vi.inflate(R.layout.row, null);
+		}
 	}
 }
